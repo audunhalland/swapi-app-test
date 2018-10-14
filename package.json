@@ -3,10 +3,16 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
+    "apollo-client": "2.2.8",
+    "graphql": "^14.0.2",
+    "ra-data-opencrud": "^0.0.6",
     "react": "^16.5.2",
-    "react-admin": "^2.3.2",
+    "react-admin": "2.3.4",
     "react-dom": "^16.5.2",
     "react-scripts": "1.1.5"
+  },
+  "resolutions": {
+    "ra-data-opencrud/**/ra-data-graphql": "2.3.4"
   },
   "scripts": {
     "start": "react-scripts start",
