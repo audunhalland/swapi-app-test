@@ -1,23 +1,35 @@
 import postgRESTDataProvider from './PostgRESTDataProvider';
 
-const foreignMap = {
+const joinMap = {
   planet: {
   },
   lifeform: {
   },
   character: {
-    lifeforms: ['character_lifeforms', 'lifeform_id'],
+    lifeforms: {
+      table: 'character_lifeforms',
+      source: 'character_id',
+      target: 'lifeform_id',
+    },
   },
   starship: {
-    pilots: ['starship_pilots', 'character_id'],
+    pilots: {
+      table: 'starship_pilots',
+      source: 'starship_id',
+      target: 'character_id',
+    },
   },
   vehicle: {
-    pilots: ['vehicle_pilots', 'character_id'],
+    pilots: {
+      table: 'vehicle_pilots',
+      source: 'vehicle_id',
+      target: 'character_id',
+    },
   },
   film: {
   },
 }
 
-const dataProvider = postgRESTDataProvider(foreignMap);
+const dataProvider = postgRESTDataProvider(joinMap);
 
 export default dataProvider;
