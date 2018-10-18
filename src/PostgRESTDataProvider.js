@@ -8,10 +8,7 @@ const verifyResponse = async (response) => {
     return response;
   } else {
     const text = await response.text();
-    throw new Error({
-      status: response.status,
-      message: text,
-    });
+    throw new Error(text);
   }
 }
 
@@ -120,8 +117,8 @@ const getOne = async (type, resource, params, config) => {
   };
 }
 
-const create = (type, resource, params, config) => {
-  return fetchApi(resource, {},
+const create = async (type, resource, params, config) => {
+  const response = await fetchApi(resource, {},
     {
       method: 'POST',
       headers: {
@@ -130,37 +127,33 @@ const create = (type, resource, params, config) => {
         Prefer: 'return=representation',
       },
       body: JSON.stringify(reactAdminToRawApi(params.data, resource, config)),
-    })
-    .then(response => response.json())
-    .then(json => json[0])
-    .then(newObject => {
-      const arrayFields = config[resource].arrayFields;
-      const joinPromises = Object.keys(arrayFields).map(key => {
-        const joinTable = arrayFields[key];
-        //console.log('join create: ', params.data, ' key: ', key);
-        return fetchApi(joinTable['table'], {}, {
-          method: 'POST',
-          headers: {
-            Accept: 'application/json',
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(
-            (params.data[key] || []).map(targetForeignKey => ({
-              [joinTable['source']]: newObject.id,
-              [joinTable['target']]: targetForeignKey,
-            }))
-          )})
-          .then(response => response.text());
-      });
-      return Promise.all([
-        Promise.resolve(newObject),
-        ...joinPromises
-      ]);
-    })
-    .then(allJsons => {
-      //console.log('allJsons: ', allJsons);
-      return getOne(ra.GET_ONE, resource, { id: allJsons[0].id }, config);
-    });
+    }
+  );
+  const newObject = (await response.json())[0];
+
+  // POST calls to insert array data into join tables
+  const arrayFields = config[resource].arrayFields;
+  await Promise.all(Object.keys(arrayFields).map(async key => {
+    const joinTable = arrayFields[key];
+    //console.log('join create: ', params.data, ' key: ', key);
+    const response = await fetchApi(joinTable['table'], {}, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(
+        (params.data[key] || []).map(targetForeignKey => ({
+          [joinTable['source']]: newObject.id,
+          [joinTable['target']]: targetForeignKey,
+        }))
+      )}
+    );
+    return await response.text();
+  }));
+
+  // Return value of CREATE should be the full object.
+  return await getOne(ra.GET_ONE, resource, { id: newObject.id }, config);
 }
 
 const deleteMany = async (type, resource, params, config) => {
