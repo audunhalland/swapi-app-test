@@ -17,6 +17,16 @@ const apiToReactAdmin = (obj, resource, foreignMap) => {
   };
 };
 
+// Filter out foreign/join table values
+const reactAdminToRawApi = (obj, resource, foreignMap) => {
+  const foreignSelects = foreignMap[resource];
+  const newObj = {...obj};
+  Object.keys(foreignSelects).forEach(key => {
+    delete newObj[key];
+  });
+  return newObj;
+};
+
 const convertResponse = (response, type, resource, foreignMap) => {
   const contentRange = response.headers.get('content-range');
   const splitRange = contentRange && contentRange.match(/([0-9]+)-([0-9]+)\/([0-9]+)/);
@@ -38,6 +48,7 @@ const fetchApi = (resource, query, options) => {
       .map(k => encodeURIComponent(k) + '=' + encodeURIComponent(query[k]))
       .join('&');
   }
+  console.log('fetch ', url, options);
   return fetch(url, options);
 };
 
@@ -56,7 +67,7 @@ const createHeaders = (params) => {
   return headers;
 }
 
-const createQuery = (foreignMap, type, resource, params) => {
+const createSelectQuery = (foreignMap, type, resource, params) => {
   const foreignSelects = foreignMap[resource];
   const query = {};
   if (foreignSelects && Object.keys(foreignSelects).length) {
@@ -80,12 +91,45 @@ const foreignMapProvider = foreignMap => (type, resource, params) => {
     case ra.GET_LIST:
     case ra.GET_MANY: {
       return fetchApi(resource,
-        createQuery(foreignMap, type, resource, params),
+        createSelectQuery(foreignMap, type, resource, params),
         {
           headers: createHeaders(params),
         }
       )
         .then(response => convertResponse(response, type, resource, foreignMap));
+    }
+    case ra.CREATE: {
+      return fetchApi(resource, {},
+        {
+          method: 'POST',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'Prefer': 'return=representation',
+          },
+          body: JSON.stringify(reactAdminToRawApi(params.data, resource, foreignMap)),
+        })
+        .then(response => response.json())
+        .then(json => ({
+          data: json
+        }));
+    }
+    case ra.DELETE_MANY: {
+      const list = params.ids.map((id) => `"${id}"`).join(',');
+      return fetchApi(resource, {
+        id: `in.(${list})`,
+      }, {
+        method: 'DELETE',
+      })
+        .then(response => {
+          if (response.ok) {
+            return {
+              data: params.ids,
+            };
+          } else {
+            return Promise.reject();
+          }
+        });
     }
     default:
       return Promise.reject();
