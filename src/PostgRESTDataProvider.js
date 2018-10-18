@@ -3,13 +3,23 @@ import * as ra from 'react-admin';
 // Using node proxy
 const baseUrl = '';
 
-const verifyResponse = (response) => (response.ok ? response : Promise.reject());
+const verifyResponse = async (response) => {
+  if (response.ok) {
+    return response;
+  } else {
+    const text = await response.text();
+    throw new Error({
+      status: response.status,
+      message: text,
+    });
+  }
+}
 
-const apiToReactAdmin = (obj, resource, joinMap) => {
-  const joinConfig = joinMap[resource];
-  const overridden = Object.keys(joinConfig).reduce((agg, key) => {
+const apiToReactAdmin = (obj, resource, config) => {
+  const arrayFields = config[resource].arrayFields;
+  const overridden = Object.keys(arrayFields).reduce((agg, key) => {
     agg[key] = obj[key].map(foreignObj => (
-      foreignObj[joinConfig[key]['target']]
+      foreignObj[arrayFields[key]['target']]
     ));
     return agg;
   }, {});
@@ -20,16 +30,16 @@ const apiToReactAdmin = (obj, resource, joinMap) => {
 };
 
 // Filter out foreign/join table values
-const reactAdminToRawApi = (obj, resource, joinMap) => {
-  const joinConfig = joinMap[resource];
+const reactAdminToRawApi = (obj, resource, config) => {
+  const arrayFields = config[resource].arrayFields;
   const newObj = {...obj};
-  Object.keys(joinConfig).forEach(key => {
+  Object.keys(arrayFields).forEach(key => {
     delete newObj[key];
   });
   return newObj;
 };
 
-const convertListResponse = (response, type, resource, joinMap) => {
+const convertListResponse = (response, type, resource, config) => {
   const contentRange = response.headers.get('content-range');
   const splitRange = contentRange && contentRange.match(/([0-9]+)-([0-9]+)\/([0-9]+)/);
   return response.json()
@@ -38,21 +48,21 @@ const convertListResponse = (response, type, resource, joinMap) => {
       return json;
     })
     .then(json => ({
-      data: json.map(obj => apiToReactAdmin(obj, resource, joinMap)),
+      data: json.map(obj => apiToReactAdmin(obj, resource, config)),
       ...splitRange && { total: parseInt(splitRange[3], 10) }
     }));
 }
 
-const fetchApi = (resource, query, options) => {
+const fetchApi = async (resource, query, options) => {
   let url = baseUrl + '/' + resource;
   if (Object.keys(query).length > 0) {
     url += '?' + Object.keys(query)
       .map(k => encodeURIComponent(k) + '=' + encodeURIComponent(query[k]))
       .join('&');
   }
-  console.log('fetch ', url, options);
-  return fetch(url, options)
-    .then(verifyResponse);
+  //console.log('fetch ', url, options);
+  const response = await fetch(url, options);
+  return await verifyResponse(response);
 };
 
 const createHeaders = (params) => {
@@ -70,16 +80,20 @@ const createHeaders = (params) => {
   return headers;
 }
 
-const createSelectQuery = (joinMap, type, resource, params) => {
-  const joinConfig = joinMap[resource];
+const createSelectQuery = (config, type, resource, params) => {
+  const arrayFields = config[resource].arrayFields;
   const query = {};
-  if (joinConfig && Object.keys(joinConfig).length) {
+  if (arrayFields && Object.keys(arrayFields).length) {
     query['select'] = '*,' +
-      Object.keys(joinConfig)
+      Object.keys(arrayFields)
         .map(key => (
-          `${key}:${joinConfig[key]['table']}(${joinConfig[key]['target']})`
+          `${key}:${arrayFields[key]['table']}(${arrayFields[key]['target']})`
         ))
         .join(',');
+  }
+  if (params.filter && params.filter.q && config[resource].filter) {
+    //const filterField = config[resource].filter;
+    query[config[resource].filter] = `ilike.*${params.filter.q}*`;
   }
   if (type === ra.GET_ONE && params.id) {
     query['id'] = `eq.${params.id}`;
@@ -91,22 +105,22 @@ const createSelectQuery = (joinMap, type, resource, params) => {
   return query;
 };
 
-const getList = (type, resource, params, joinMap) => {
+const getList = (type, resource, params, config) => {
   return fetchApi(resource,
-    createSelectQuery(joinMap, type, resource, params),
+    createSelectQuery(config, type, resource, params),
     { headers: createHeaders(params) }
   )
-    .then(response => convertListResponse(response, type, resource, joinMap));
+    .then(response => convertListResponse(response, type, resource, config));
 };
 
-const getOne = (type, resource, params, joinMap) => {
-  return getList(type, resource, params, joinMap)
-    .then(listResponse => ({
-      data: listResponse.data[0],
-    }));
+const getOne = async (type, resource, params, config) => {
+  const listResponse = await getList(type, resource, params, config);
+  return {
+    data: listResponse.data[0],
+  };
 }
 
-const create = (type, resource, params, joinMap) => {
+const create = (type, resource, params, config) => {
   return fetchApi(resource, {},
     {
       method: 'POST',
@@ -115,14 +129,15 @@ const create = (type, resource, params, joinMap) => {
         'Content-Type': 'application/json',
         Prefer: 'return=representation',
       },
-      body: JSON.stringify(reactAdminToRawApi(params.data, resource, joinMap)),
+      body: JSON.stringify(reactAdminToRawApi(params.data, resource, config)),
     })
     .then(response => response.json())
-    .then(mainJson => {
-      const joinConfig = joinMap[resource];
-      const joinPromises = Object.keys(joinConfig).map(key => {
-        const joinTable = joinConfig[key];
-        console.log('join create: ', params.data, ' key: ', key);
+    .then(json => json[0])
+    .then(newObject => {
+      const arrayFields = config[resource].arrayFields;
+      const joinPromises = Object.keys(arrayFields).map(key => {
+        const joinTable = arrayFields[key];
+        //console.log('join create: ', params.data, ' key: ', key);
         return fetchApi(joinTable['table'], {}, {
           method: 'POST',
           headers: {
@@ -131,24 +146,24 @@ const create = (type, resource, params, joinMap) => {
           },
           body: JSON.stringify(
             (params.data[key] || []).map(targetForeignKey => ({
-              [joinTable['source']]: mainJson.id,
+              [joinTable['source']]: newObject.id,
               [joinTable['target']]: targetForeignKey,
             }))
           )})
           .then(response => response.text());
       });
       return Promise.all([
-        Promise.resolve(mainJson[0]),
+        Promise.resolve(newObject),
         ...joinPromises
       ]);
     })
     .then(allJsons => {
-      console.log('allJsons: ', allJsons);
-      return getOne(ra.GET_ONE, resource, { id: allJsons[0].id }, joinMap);
+      //console.log('allJsons: ', allJsons);
+      return getOne(ra.GET_ONE, resource, { id: allJsons[0].id }, config);
     });
 }
 
-const deleteMany = async (type, resource, params, joinMap) => {
+const deleteMany = async (type, resource, params, config) => {
   const list = params.ids.map((id) => `"${id}"`).join(',');
   await fetchApi(resource,
     { id: `in.(${list})` },
@@ -159,21 +174,21 @@ const deleteMany = async (type, resource, params, joinMap) => {
   };
 };
 
-const joinMapProvider = joinMap => (type, resource, params) => {
+const configProvider = config => (type, resource, params) => {
   console.log('request: ', type, resource, params);
   switch (type) {
     case ra.GET_ONE:
-      return getOne(type, resource, params, joinMap);
+      return getOne(type, resource, params, config);
     case ra.GET_LIST:
     case ra.GET_MANY:
-      return getList(type, resource, params, joinMap);
+      return getList(type, resource, params, config);
     case ra.CREATE:
-      return create(type, resource, params, joinMap);
+      return create(type, resource, params, config);
     case ra.DELETE_MANY:
-      return deleteMany(type, resource, params, joinMap);
+      return deleteMany(type, resource, params, config);
     default:
       return Promise.reject();
   }
 };
 
-export default joinMapProvider;
+export default configProvider;

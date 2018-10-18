@@ -1,35 +1,50 @@
 import postgRESTDataProvider from './PostgRESTDataProvider';
 
-const joinMap = {
+const config = {
   planet: {
+    filter: 'name',
+    arrayFields: {},
   },
   lifeform: {
+    filter: 'name',
+    arrayFields: {},
   },
   character: {
-    lifeforms: {
-      table: 'character_lifeforms',
-      source: 'character_id',
-      target: 'lifeform_id',
-    },
+    filter: 'name',
+    arrayFields: {
+      lifeforms: {
+        table: 'character_lifeforms',
+        source: 'character_id',
+        target: 'lifeform_id',
+      },
+    }
   },
   starship: {
-    pilots: {
-      table: 'starship_pilots',
-      source: 'starship_id',
-      target: 'character_id',
-    },
+    filter: 'name',
+    arrayFields: {
+      pilots: {
+        table: 'starship_pilots',
+        source: 'starship_id',
+        target: 'character_id',
+      },
+    }
   },
   vehicle: {
-    pilots: {
-      table: 'vehicle_pilots',
-      source: 'vehicle_id',
-      target: 'character_id',
-    },
+    filter: 'name',
+    arrayFields: {
+      pilots: {
+        table: 'vehicle_pilots',
+        source: 'vehicle_id',
+        target: 'character_id',
+      },
+    }
   },
   film: {
+    filter: 'title',
+    arrayFields: {},
   },
 }
 
-const dataProvider = postgRESTDataProvider(joinMap);
+const dataProvider = postgRESTDataProvider(config);
 
 export default dataProvider;
