@@ -1,6 +1,6 @@
-import React, { Component } from 'react';
+import React from 'react';
 import * as ra from 'react-admin';
-import buildOpenCrudProvider from 'ra-data-opencrud';
+import dataProvider from './SwapiPostgRESTDataProvider';
 
 const FilmList = (props) => (
   <ra.List {...props}>
@@ -18,34 +18,47 @@ const NameList = (props) => (
   </ra.List>
 );
 
-class App extends Component {
-  constructor() {
-    super();
-    this.state = { dataProvider: null };
-  }
-  componentDidMount() {
-    buildOpenCrudProvider({ clientOptions: { uri: 'http://localhost:4466/' } })
-      .then(dataProvider => this.setState({ dataProvider }));
-  }
+const CharacterList = (props) => (
+  <ra.List {...props}>
+    <ra.Datagrid>
+      <ra.TextField source="name" />
+      <ra.ReferenceArrayField source="lifeforms" reference="lifeform">
+        <ra.SingleFieldList>
+          <ra.ChipField source="name" />
+        </ra.SingleFieldList>
+      </ra.ReferenceArrayField>
+      <ra.ReferenceField source="homeworld" reference="planet">
+        <ra.TextField source="name" />
+      </ra.ReferenceField>
+    </ra.Datagrid>
+  </ra.List>
+);
 
-  render() {
-    const { dataProvider } = this.state;
+const StarshipList = (props) => (
+  <ra.List {...props}>
+    <ra.Datagrid>
+      <ra.TextField source="name" />
+      <ra.ReferenceArrayField source="pilots" reference="character">
+        <ra.SingleFieldList>
+          <ra.ChipField source="name" />
+        </ra.SingleFieldList>
+      </ra.ReferenceArrayField>
+    </ra.Datagrid>
+  </ra.List>
+);
 
-    if (!dataProvider) {
-      return <div>Loading</div>;
-    }
-
-    return (
-      <ra.Admin dataProvider={dataProvider}>
-        <ra.Resource name="Planet" list={NameList} />
-        <ra.Resource name="Lifeform" list={NameList} />
-        <ra.Resource name="Character" list={NameList} />
-        <ra.Resource name="Starship" list={NameList} />
-        <ra.Resource name="Vehicle" list={NameList} />
-        <ra.Resource name="Film" list={FilmList} />
-      </ra.Admin>
-    );
-  }
-}
+const App = () => (
+  <ra.Admin
+    title='Star Wars CMS'
+    dataProvider={dataProvider}
+  >
+    <ra.Resource name="planet" list={NameList} />
+    <ra.Resource name="lifeform" list={NameList} />
+    <ra.Resource name="character" list={CharacterList} />
+    <ra.Resource name="starship" list={StarshipList} />
+    <ra.Resource name="vehicle" list={NameList} />
+    <ra.Resource name="film" list={FilmList} />
+  </ra.Admin>
+);
 
 export default App;
