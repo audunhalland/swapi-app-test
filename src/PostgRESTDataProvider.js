@@ -7,6 +7,10 @@ const convertResponse = (response) => {
   const contentRange = response.headers.get('content-range');
   const splitRange = contentRange && contentRange.match(/([0-9]+)-([0-9]+)\/([0-9]+)/);
   return response.json()
+    .then(json => {
+      console.log('response json: ', json);
+      return json;
+    })
     .then(json => ({
       data: json,
       ...splitRange && { total: parseInt(splitRange[3], 10) }
@@ -31,7 +35,6 @@ const createHeaders = (params) => {
     const end = start + perPage;
 
     headers['Range-Unit'] = 'items';
-    //headers['Content-Range'] = `${start}-${end}/*`;
     headers['Range'] = `${start}-${end}`;
     headers['Prefer'] = 'count=exact';
   }
@@ -39,16 +42,35 @@ const createHeaders = (params) => {
   return headers;
 }
 
-export default (type, resource, params) => {
+const createQuery = (foreignMap, type, resource, params) => {
+  const foreignSelects = foreignMap[resource];
+  const query = {};
+  if (foreignSelects && foreignSelects.length) {
+    query['select'] = '*,' + foreignSelects.join(',');
+  }
+  if (type === ra.GET_MANY && params.ids) {
+    const list = params.ids.map((id) => `"${id}"`).join(',');
+    query['id'] = `in.(${list})`;
+  }
+  return query;
+};
+
+const foreignMapProvider = foreignMap => (type, resource, params) => {
   console.log('request: ', type, resource, params);
   switch (type) {
-    case ra.GET_LIST: {
-      return fetchApi(resource, {}, {
-        headers: createHeaders(params)
-      })
+    case ra.GET_LIST:
+    case ra.GET_MANY: {
+      return fetchApi(resource,
+        createQuery(foreignMap, type, resource, params),
+        {
+          headers: createHeaders(params),
+        }
+      )
         .then(convertResponse);
     }
     default:
       return Promise.reject();
   }
 };
+
+export default foreignMapProvider;
