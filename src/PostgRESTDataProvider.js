@@ -3,7 +3,21 @@ import * as ra from 'react-admin';
 // Using node proxy
 const baseUrl = '';
 
-const convertResponse = (response) => {
+const apiToReactAdmin = (obj, resource, foreignMap) => {
+  const foreignSelects = foreignMap[resource];
+  const overridden = Object.keys(foreignSelects).reduce((agg, key) => {
+    agg[key] = obj[key].map(foreignObj => (
+      foreignObj[foreignSelects[key][1]]
+    ));
+    return agg;
+  }, {});
+  return {
+    ...obj,
+    ...overridden,
+  };
+};
+
+const convertResponse = (response, type, resource, foreignMap) => {
   const contentRange = response.headers.get('content-range');
   const splitRange = contentRange && contentRange.match(/([0-9]+)-([0-9]+)\/([0-9]+)/);
   return response.json()
@@ -12,7 +26,7 @@ const convertResponse = (response) => {
       return json;
     })
     .then(json => ({
-      data: json,
+      data: json.map(obj => apiToReactAdmin(obj, resource, foreignMap)),
       ...splitRange && { total: parseInt(splitRange[3], 10) }
     }));
 }
@@ -45,8 +59,13 @@ const createHeaders = (params) => {
 const createQuery = (foreignMap, type, resource, params) => {
   const foreignSelects = foreignMap[resource];
   const query = {};
-  if (foreignSelects && foreignSelects.length) {
-    query['select'] = '*,' + foreignSelects.join(',');
+  if (foreignSelects && Object.keys(foreignSelects).length) {
+    query['select'] = '*,' +
+      Object.keys(foreignSelects)
+        .map(key => (
+          `${key}:${foreignSelects[key][0]}(${foreignSelects[key][1]})`
+        ))
+        .join(',');
   }
   if (type === ra.GET_MANY && params.ids) {
     const list = params.ids.map((id) => `"${id}"`).join(',');
@@ -66,7 +85,7 @@ const foreignMapProvider = foreignMap => (type, resource, params) => {
           headers: createHeaders(params),
         }
       )
-        .then(convertResponse);
+        .then(response => convertResponse(response, type, resource, foreignMap));
     }
     default:
       return Promise.reject();
