@@ -1,123 +1,71 @@
 import React from 'react';
-import * as ra from 'react-admin';
+import {
+  Admin, Resource,
+  List, Create, Show,
+  Datagrid, SimpleForm, SingleFieldList, SimpleShowLayout,
+  ShowButton,
+  TextField, RichTextField, ChipField,
+  ReferenceField, ReferenceArrayField,
+  LongTextInput, SelectInput, SelectArrayInput, AutocompleteArrayInput,
+  ReferenceInput, ReferenceArrayInput
+} from 'react-admin';
 import dataProvider from './SwapiPostgRESTDataProvider';
 
 const NameList = (props) => (
-  <ra.List {...props}>
-    <ra.Datagrid>
-      <ra.TextField source="name" />
-    </ra.Datagrid>
-  </ra.List>
-);
-
-const CharacterList = (props) => (
-  <ra.List {...props}>
-    <ra.Datagrid>
-      <ra.TextField source="name" />
-      <ra.ReferenceArrayField source="lifeforms" reference="lifeform">
-        <ra.SingleFieldList>
-          <ra.ChipField source="name" />
-        </ra.SingleFieldList>
-      </ra.ReferenceArrayField>
-      <ra.ReferenceField source="homeworld" reference="planet">
-        <ra.TextField source="name" />
-      </ra.ReferenceField>
-    </ra.Datagrid>
-  </ra.List>
-);
-
-const CharacterForm = (props) => (
-  <ra.SimpleForm {...props}>
-    <ra.LongTextInput source="name" />
-    <ra.LongTextInput source="mass" />
-    <ra.LongTextInput source="hair_color" />
-    <ra.LongTextInput source="skin_color" />
-    <ra.LongTextInput source="eye_color" />
-    <ra.LongTextInput source="birth_year" />
-    <ra.LongTextInput source="gender" />
-    <ra.ReferenceInput source="homeworld" reference="planet">
-      <ra.SelectInput optionText="name" />
-    </ra.ReferenceInput>
-    <ra.ReferenceArrayInput
-      label="Lifeforms"
-      source="lifeforms"
-      reference="lifeform"
-      allowEmpty
-    >
-      <ra.AutocompleteArrayInput />
-    </ra.ReferenceArrayInput>
-    <ra.ReferenceArrayInput
-      label="films"
-      source="films"
-      reference="film"
-      allowEmpty
-    >
-      <ra.SelectArrayInput optionText="title" />
-    </ra.ReferenceArrayInput>
-  </ra.SimpleForm>
-);
-
-const CharacterCreate = (props) => (
-  <ra.Create {...props}>
-    <CharacterForm />
-  </ra.Create>
+  <List {...props}>
+    <Datagrid>
+      <TextField source="name" />
+    </Datagrid>
+  </List>
 );
 
 const FilmList = (props) => (
-  <ra.List {...props}>
-    <ra.Datagrid>
-      <ra.TextField source="title" />
-      <ra.ShowButton />
-    </ra.Datagrid>
-  </ra.List>
+  <List {...props}>
+    <Datagrid>
+      <TextField source="title" />
+      <ShowButton />
+    </Datagrid>
+  </List>
 );
 
 const FilmShow = (props) => (
-  <ra.Show {...props}>
-    <ra.SimpleShowLayout>
-      <ra.TextField source="title" />
-      <ra.TextField source="director" />
-      <ra.RichTextField source="opening_crawl" />
-      <ra.ReferenceArrayField source="planets" reference="planet">
-        <ra.Datagrid>
-          <ra.TextField source="name" />
-          <ra.TextField source="terrain" />
-          <ra.TextField source="climate" />
-          <ra.ShowButton />
-        </ra.Datagrid>
-      </ra.ReferenceArrayField>
-      <ra.ReferenceArrayField source="characters" reference="character">
-        <ra.SingleFieldList>
-          <ra.ChipField source="name" />
-        </ra.SingleFieldList>
-      </ra.ReferenceArrayField>
-      <ra.ReferenceArrayField source="starships" reference="starship">
-        <ra.SingleFieldList>
-          <ra.ChipField source="name" />
-        </ra.SingleFieldList>
-      </ra.ReferenceArrayField>
-      <ra.ReferenceArrayField source="vehicles" reference="vehicle">
-        <ra.SingleFieldList>
-          <ra.ChipField source="name" />
-        </ra.SingleFieldList>
-      </ra.ReferenceArrayField>
+  <Show {...props}>
+    <SimpleShowLayout>
+      <TextField source="title" />
+      <TextField source="director" />
+      <TextField source="producer" />
+      <ReferenceArrayField source="characters" reference="character">
+        <SingleFieldList>
+          <ChipField source="name" />
+        </SingleFieldList>
+      </ReferenceArrayField>
+    </SimpleShowLayout>
+  </Show>
+);
 
-    </ra.SimpleShowLayout>
-  </ra.Show>
+const CharacterCreate = (props) => (
+  <Create {...props}>
+    <SimpleForm>
+      <LongTextInput source="name" />
+      <ReferenceArrayInput source="films" reference="film">
+        <SelectArrayInput optionText="title" />
+      </ReferenceArrayInput>
+    </SimpleForm>
+  </Create>
 );
 
 const App = () => (
-  <ra.Admin
+  <Admin
     title='Star Wars CMS'
     dataProvider={dataProvider}
   >
-    <ra.Resource name="planet" list={NameList} />
-    <ra.Resource name="lifeform" list={NameList} />
-    <ra.Resource name="character" list={CharacterList} create={CharacterCreate}/>
-    <ra.Resource name="starship" list={NameList} />
-    <ra.Resource name="vehicle" list={NameList} />
-    <ra.Resource name="film" list={FilmList} show={FilmShow}/>
-  </ra.Admin>
+    <Resource name="planet" list={NameList}/>
+    <Resource name="lifeform" list={NameList} />
+    <Resource name="character" list={NameList} create={CharacterCreate}/>
+    <Resource name="starship" list={NameList} />
+    <Resource name="vehicle" list={NameList} />
+    <Resource name="film" list={FilmList} show={FilmShow}/>
+  </Admin>
 );
 
 export default App;
